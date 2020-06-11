@@ -326,6 +326,9 @@ void pybind_trianglemesh(py::module &m) {
                  "energy"_a = geometry::MeshBase::
                          DeformAsRigidAsPossibleEnergy::Spokes,
                  "smoothed_alpha"_a = 0.01)
+            .def("fill_holes", &geometry::TriangleMesh::FillHoles,
+                 "Function to smoothly fill all holes present in the triangle "
+                 "mesh.")
             .def_static("create_from_point_cloud_alpha_shape",
                         [](const geometry::PointCloud &pcd, double alpha) {
                             return geometry::TriangleMesh::
