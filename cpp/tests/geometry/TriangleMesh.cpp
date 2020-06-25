@@ -1435,6 +1435,35 @@ TEST(TriangleMesh, DeformAsRigidAsPossible) {
     ExpectMeshEQ(*mesh_deform, mesh_gt, 1e-5);
 }
 
+TEST(TriangleMeshHoleFilling, FillHoles) {
+    // Hole with no crenellations
+    geometry::TriangleMesh mesh;
+    mesh.vertices_ = {
+            {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0.5, 0.5, -1}};
+    mesh.triangles_ = {{0, 4, 1}, {1, 4, 2}, {2, 4, 3}, {3, 4, 0}};
+
+    geometry::TriangleMesh ref;
+    ref.vertices_ = {
+            {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0.5, 0.5, -1}};
+    ref.triangles_ = {{0, 4, 1}, {1, 4, 2}, {2, 4, 3},
+                      {3, 4, 0}, {1, 3, 0}, {1, 2, 3}};
+
+    ExpectMeshEQ(*mesh.FillHoles(), ref);
+
+    // Hole with crenellations
+    mesh.vertices_ = {{0, 0, 0},      {1, 0, 0},   {1, 1, 0},  {0, 1, 0},
+                      {0.5, 0.5, -1}, {0.5, 0, 1}, {0.5, 1, 1}};
+    mesh.triangles_ = {{0, 4, 1}, {1, 4, 2}, {2, 4, 3},
+                       {3, 4, 0}, {0, 1, 5}, {2, 3, 6}};
+
+    ref.vertices_ = {
+            {0, 0, 0}, {1, 0, 0}, {1, 1, 0}, {0, 1, 0}, {0.5, 0.5, -1}};
+    ref.triangles_ = {{0, 4, 1}, {1, 4, 2}, {2, 4, 3}, {3, 4, 0}, {0, 1, 5},
+                      {2, 3, 6}, {5, 3, 0}, {5, 6, 3}, {5, 2, 6}, {5, 1, 2}};
+
+    ExpectMeshEQ(*mesh.FillHoles(), ref);
+}
+
 TEST(TriangleMesh, SelectByIndex) {
     std::vector<Eigen::Vector3d> ref_vertices = {
             {360.784314, 717.647059, 800.000000},
