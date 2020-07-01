@@ -77,18 +77,29 @@ public:
         edges_to_triangles_ = mesh_->GetEdgeToTrianglesMap();
     }
 
-    double ComputeDihedralAngle(
-            std::vector<Eigen::Vector3d> &first_point_set,
-            std::vector<Eigen::Vector3d> &second_point_set) {
-        const Eigen::Vector3d n1 =
-                ((first_point_set[1] - first_point_set[0])
-                         .cross(first_point_set[2] - first_point_set[0]))
-                        .normalized();
-        const Eigen::Vector3d n2 =
-                ((second_point_set[1] - second_point_set[0])
-                         .cross(second_point_set[2] - second_point_set[0]))
-                        .normalized();
-        return std::acos(std::abs(n1.dot(n2)) / (n1.norm() * n2.norm()));
+    std::pair<int, int> GetAdjacentHoleIndices(int index,
+                                               std::vector<int> hole) {
+        int hidx1 = index + 1 >= hole.size() ? 0 : index + 1;
+        int hidx2 = index - 1 < 0 ? hole.size() - 1 : index - 1;
+        return std::pair<int, int>(hidx1, hidx2);
+    }
+
+    double ComputeDihedralAngle(const Eigen::Vector4d &plane0,
+                                const Eigen::Vector4d &plane1) {
+        double dihedral_angle = std::acos(
+                (plane0[0] * plane1[0] + plane0[1] * plane1[1] +
+                 plane0[2] * plane1[2]) /
+                (std::sqrt(plane0[0] * plane0[0] + plane0[1] * plane0[1] +
+                           plane0[2] * plane0[2]) *
+                 std::sqrt(plane1[0] * plane1[0] + plane1[1] * plane1[1] +
+                           plane1[2] * plane1[2])));
+
+        if (isnan(dihedral_angle)) {
+            // The planes are parallel.
+            return 0;
+        }
+
+        return dihedral_angle;
     }
 
     double ComputeMaxDihedralAngle(int vidx0, int vidx1, int vidx2) {
@@ -107,23 +118,17 @@ public:
             adjacent_triangle_indices.insert(tnb);
         }
 
-        // Make a point set which spans the plane given by the three vertices
-        // vidx0, vidx1, and vidx2
-        std::vector<Eigen::Vector3d> first_point_set = {
-                mesh_->vertices_[vidx0], mesh_->vertices_[vidx1],
-                mesh_->vertices_[vidx2]};
-
         // Find the cosine of the highest dihedral angle
         double max_dihedral_angle = 0;
+        const Eigen::Vector4d plane0 = mesh_->ComputeTrianglePlane(
+                mesh_->vertices_[vidx0], mesh_->vertices_[vidx1],
+                mesh_->vertices_[vidx2]);
         for (int tidx : adjacent_triangle_indices) {
-            const Eigen::Vector3i triangle = mesh_->triangles_[tidx];
-            std::vector<Eigen::Vector3d> second_point_set = {
-                    mesh_->vertices_[triangle[0]],
-                    mesh_->vertices_[triangle[1]],
-                    mesh_->vertices_[triangle[2]]};
-            max_dihedral_angle = std::max(
-                    max_dihedral_angle,
-                    ComputeDihedralAngle(first_point_set, second_point_set));
+            Eigen::Vector4d plane1 = mesh_->GetTrianglePlane(tidx);
+            double dihedral_angle = ComputeDihedralAngle(plane0, plane1);
+            std::cout << "dihedral_angle: " << dihedral_angle << std::endl;
+            max_dihedral_angle = std::max(max_dihedral_angle,
+                                          ComputeDihedralAngle(plane0, plane1));
         }
         return max_dihedral_angle;
     }
