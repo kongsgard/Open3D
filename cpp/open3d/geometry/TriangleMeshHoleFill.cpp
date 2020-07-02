@@ -66,6 +66,24 @@ public:
         return std::acos(v1.dot(v2) / (v1.norm() * v2.norm()));
     }
 
+    void ComputeAnglesForNeighbors(std::vector<double> &angles,
+                                   std::vector<int> &front,
+                                   std::pair<int, int> adjacent_front_indices) {
+        // Update the vertex angles for vidx_prev and vidx_next
+        const size_t vidx_prev = front[adjacent_front_indices.first];
+        const size_t vidx_next = front[adjacent_front_indices.second];
+        auto adjacent_front_indices_to_neighbors =
+                GetAdjacentFrontIndices(adjacent_front_indices.first, front);
+        angles[vidx_prev] =
+                ComputeAngle(front[adjacent_front_indices.first], vidx_prev,
+                             front[adjacent_front_indices.second]);
+        adjacent_front_indices_to_neighbors =
+                GetAdjacentFrontIndices(adjacent_front_indices.second, front);
+        angles[vidx_prev] =
+                ComputeAngle(front[adjacent_front_indices.first], vidx_next,
+                             front[adjacent_front_indices.second]);
+    }
+
     int SelectBoundaryVertexIndexByMinRandomRule(int min_angle_index,
                                                  double angle,
                                                  int num_angles) {
@@ -122,13 +140,13 @@ public:
         return false;
     }
 
-    std::vector<size_t> AddVertices(size_t min_angle_index,
-                                    double min_angle,
-                                    size_t vidx,
-                                    size_t vidx_prev,
-                                    size_t vidx_next,
-
-                                    bool insert_two_vertices = false) {
+    std::vector<Eigen::Vector3d> ComputeVertexCandidates(
+            size_t min_angle_index,
+            double min_angle,
+            size_t vidx,
+            size_t vidx_prev,
+            size_t vidx_next,
+            bool insert_two_vertices = false) {
         const Eigen::Vector3d &vertex = mesh_->vertices_[vidx];
         const Eigen::Vector3d &vertex_prev = mesh_->vertices_[vidx_prev];
         const Eigen::Vector3d &vertex_next = mesh_->vertices_[vidx_next];
@@ -150,6 +168,7 @@ public:
         Eigen::Vector3d vertex_normal = EstimateVertexNormal(
                 vidx, min_angle, vertex, vertex_prev, vertex_next);
 
+        std::vector<Eigen::Vector3d> vertex_candidates;
         for (const auto sector : sectors) {
             const Eigen::Vector3d sector_rotated =
                     (sector - sector.dot(vertex_normal) * vertex_normal)
@@ -179,28 +198,14 @@ public:
                     vertex +
                     0.5 * (vertex_prev + vertex_next - 2 * vertex).norm() *
                             insertion_direction;
+            vertex_candidates.push_back(vertex_new);
 
-            // TODO: Only add vertex_new if the smallest distance between
-            // vertex_new and every vertex of front is bigger than a given
-            // threshold.
-            mesh_->vertices_.push_back(vertex_new);
-            mesh_->adjacency_list_.push_back(std::unordered_set<int>{});
-
-            // front[min_angle_index] = mesh_->vertices_.size() - 1;
-            // angles[min_angle_index] = ComputeAngle(
-            //        vidx_prev, mesh_->vertices_.size() - 1, vidx_next);
-            // If one vertex inserted: Replace vidx with vidx_new in front
-            // vector If two vertices inserted: Replace vidx with vidx_new.first
-            // in front vector, and insert vidx_new.second after this position
-            // TODO: Compute vertex angle
-            // TODO: Update angles vector
+            // TODO: Only add vertex_new to vertex_candidates if the smallest
+            // distance between vertex_new and every vertex of front is bigger
+            // than a given threshold.
         }
 
-        if (insert_two_vertices) {
-            return std::vector<size_t>{mesh_->vertices_.size() - 2,
-                                       mesh_->vertices_.size() - 1};
-        }
-        return std::vector<size_t>{mesh_->vertices_.size() - 1};
+        return vertex_candidates;
     }
 
     void AddTriangle(size_t tidx0, size_t tidx1, size_t tidx2) {
@@ -260,57 +265,119 @@ public:
                 const size_t &vidx_prev = front[adjacent_front_indices.first];
                 const size_t &vidx_next = front[adjacent_front_indices.second];
 
+                std::vector<Eigen::Vector3d> vertex_candidates;
                 if (min_angle < lower_angle_threshold_) {
-                    // Add one triangle, but no new vertices.
-                    AddTriangle(vidx_prev, vidx_next, vidx);
-
-                    mesh_->adjacency_list_[vidx_prev].insert(vidx_next);
-                    mesh_->adjacency_list_[vidx_next].insert(vidx_prev);
+                    // Do nothing.
                 } else if (lower_angle_threshold_ < min_angle &&
                            min_angle <= upper_angle_threshold_) {
-                    // Insert one vertex and add two triangles.
-                    int vidx_new = AddVertices(min_angle_index, min_angle, vidx,
-                                               vidx_prev, vidx_next)
-                                           .front();
-
-                    AddTriangle(vidx_prev, vidx_new, vidx);
-                    AddTriangle(vidx, vidx_new, vidx_next);
-
-                    mesh_->adjacency_list_[vidx_prev].insert(vidx_new);
-                    mesh_->adjacency_list_[vidx_new].insert(vidx_prev);
-                    mesh_->adjacency_list_[vidx].insert(vidx_new);
-                    mesh_->adjacency_list_[vidx_new].insert(vidx);
-                    mesh_->adjacency_list_[vidx_next].insert(vidx_new);
-                    mesh_->adjacency_list_[vidx_new].insert(vidx_next);
+                    vertex_candidates =
+                            ComputeVertexCandidates(min_angle_index, min_angle,
+                                                    vidx, vidx_prev, vidx_next);
                 } else if (upper_angle_threshold_ < min_angle &&
                            min_angle < M_PI) {
-                    // Insert two vertices and add three triangles.
-                    std::vector<size_t> vidxs_new =
-                            AddVertices(min_angle_index, min_angle, vidx,
-                                        vidx_prev, vidx_next);
-
-                    AddTriangle(vidx_prev, vidxs_new.front(), vidx);
-                    AddTriangle(vidxs_new.front(), vidxs_new.back(), vidx);
-                    AddTriangle(vidxs_new.back(), vidx_next, vidx);
-
-                    mesh_->adjacency_list_[vidx_prev].insert(vidxs_new.front());
-                    mesh_->adjacency_list_[vidxs_new.front()].insert(vidx_prev);
-                    mesh_->adjacency_list_[vidx].insert(vidxs_new.front());
-                    mesh_->adjacency_list_[vidxs_new.front()].insert(vidx);
-                    mesh_->adjacency_list_[vidxs_new.front()].insert(
-                            vidxs_new.back());
-                    mesh_->adjacency_list_[vidxs_new.back()].insert(
-                            vidxs_new.front());
-                    mesh_->adjacency_list_[vidx].insert(vidxs_new.back());
-                    mesh_->adjacency_list_[vidxs_new.back()].insert(vidx);
-                    mesh_->adjacency_list_[vidx_next].insert(vidxs_new.back());
-                    mesh_->adjacency_list_[vidxs_new.back()].insert(vidx_next);
+                    vertex_candidates = ComputeVertexCandidates(
+                            min_angle_index, min_angle, vidx, vidx_prev,
+                            vidx_next, /*insert_two_vertices=*/true);
                 } else {
                     utility::LogError("Vertex angle is not valid.");
                     return;
                 }
 
-                front.erase(front.begin() + min_angle_index);
+                switch (vertex_candidates.size()) {
+                    case 0: {
+                        // Add one triangle, but no new vertices.
+                        AddTriangle(vidx_prev, vidx_next, vidx);
+
+                        mesh_->adjacency_list_[vidx_prev].insert(vidx_next);
+                        mesh_->adjacency_list_[vidx_next].insert(vidx_prev);
+
+                        ComputeAnglesForNeighbors(angles, front,
+                                                  adjacent_front_indices);
+                        front.erase(front.begin() + min_angle_index);
+
+                        break;
+                    }
+                    case 1: {
+                        // Insert one vertex and add two triangles.
+                        mesh_->vertices_.push_back(vertex_candidates.front());
+                        mesh_->adjacency_list_.push_back(
+                                std::unordered_set<int>{});
+                        size_t vidx_new = mesh_->vertices_.size() - 1;
+
+                        AddTriangle(vidx_prev, vidx_new, vidx);
+                        AddTriangle(vidx, vidx_new, vidx_next);
+
+                        mesh_->adjacency_list_[vidx_prev].insert(vidx_new);
+                        mesh_->adjacency_list_[vidx_new].insert(vidx_prev);
+                        mesh_->adjacency_list_[vidx].insert(vidx_new);
+                        mesh_->adjacency_list_[vidx_new].insert(vidx);
+                        mesh_->adjacency_list_[vidx_next].insert(vidx_new);
+                        mesh_->adjacency_list_[vidx_new].insert(vidx_next);
+
+                        ComputeAnglesForNeighbors(angles, front,
+                                                  adjacent_front_indices);
+                        front[min_angle_index] = vidx_new;
+                        angles[min_angle_index] =
+                                ComputeAngle(vidx_prev, vidx_new, vidx_next);
+
+                        break;
+                    }
+                    case 2: {
+                        // Insert two vertices and add three triangles.
+                        mesh_->vertices_.push_back(vertex_candidates.front());
+                        mesh_->vertices_.push_back(vertex_candidates.back());
+                        mesh_->adjacency_list_.push_back(
+                                std::unordered_set<int>{});
+                        mesh_->adjacency_list_.push_back(
+                                std::unordered_set<int>{});
+                        std::pair<size_t, size_t> vidxs_new(
+                                mesh_->vertices_.size() - 2,
+                                mesh_->vertices_.size() - 1);
+
+                        AddTriangle(vidx_prev, vidxs_new.first, vidx);
+                        AddTriangle(vidxs_new.first, vidxs_new.second, vidx);
+                        AddTriangle(vidxs_new.second, vidx_next, vidx);
+
+                        mesh_->adjacency_list_[vidx_prev].insert(
+                                vidxs_new.first);
+                        mesh_->adjacency_list_[vidxs_new.first].insert(
+                                vidx_prev);
+                        mesh_->adjacency_list_[vidx].insert(vidxs_new.first);
+                        mesh_->adjacency_list_[vidxs_new.first].insert(vidx);
+                        mesh_->adjacency_list_[vidxs_new.first].insert(
+                                vidxs_new.second);
+                        mesh_->adjacency_list_[vidxs_new.second].insert(
+                                vidxs_new.first);
+                        mesh_->adjacency_list_[vidx].insert(vidxs_new.second);
+                        mesh_->adjacency_list_[vidxs_new.second].insert(vidx);
+                        mesh_->adjacency_list_[vidx_next].insert(
+                                vidxs_new.second);
+                        mesh_->adjacency_list_[vidxs_new.second].insert(
+                                vidx_next);
+
+                        ComputeAnglesForNeighbors(angles, front,
+                                                  adjacent_front_indices);
+                        front[min_angle_index] = vidxs_new.first;
+                        angles[min_angle_index] = ComputeAngle(
+                                vidx_prev, vidxs_new.first, vidxs_new.second);
+                        front.insert(front.begin() + min_angle_index + 1,
+                                     vidxs_new.second);
+                        angles.insert(
+                                angles.begin() + min_angle_index + 1,
+                                ComputeAngle(vidxs_new.first, vidxs_new.second,
+                                             vidx_next));
+                        // TODO: Insertion into a vector is inefficient.
+                        // Consider using e.g. a list.
+
+                        break;
+                    }
+                    default: {
+                        utility::LogError(
+                                "Computed more than two vertex candidates for "
+                                "triangulation.");
+                        return;
+                    }
+                }
             }
         }
     }
