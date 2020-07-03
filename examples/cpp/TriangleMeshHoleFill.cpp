@@ -8,10 +8,10 @@ int main(int argc, char *argv[]) {
     utility::SetVerbosityLevel(utility::VerbosityLevel::Debug);
 
     //*
-    // auto mesh = io::CreateMeshFromFile(
-    //        "/Users/sondrebk/Documents/Open3d/examples/TestData/Bunny.ply");
     auto mesh = io::CreateMeshFromFile(
-            "/Users/sondrebk/Desktop/archive/Badger.off");
+            "/Users/sondrebk/Documents/Open3d/examples/TestData/Bunny.ply");
+    // auto mesh = io::CreateMeshFromFile(
+    //        "/Users/sondrebk/Desktop/archive/Badger.off");
     auto filled_mesh = mesh->FillHoles();
     //*/
 
@@ -33,6 +33,7 @@ int main(int argc, char *argv[]) {
     auto filled_mesh = mesh.FillHoles();
     //*/
 
+    /*
     utility::LogDebug("Triangles: {}\n",
                       std::to_string(filled_mesh->triangles_.size()));
 
@@ -42,9 +43,10 @@ int main(int argc, char *argv[]) {
                       std::to_string(filled_mesh->IsVertexManifold()));
     utility::LogDebug("IsWatertight: {}\n",
                       std::to_string(filled_mesh->IsWatertight()));
+    //*/
 
     std::vector<std::shared_ptr<const geometry::Geometry>> meshes;
-    meshes.push_back(mesh);
-    // meshes.push_back(filled_mesh);
+    // meshes.push_back(mesh);
+    meshes.push_back(filled_mesh);
     visualization::DrawGeometries(meshes);
 }
