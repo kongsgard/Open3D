@@ -43,7 +43,8 @@ public:
         mesh_ = std::make_shared<TriangleMesh>();
         mesh_->vertices_ = mesh.vertices_;
         mesh_->vertex_normals_ = mesh.vertex_normals_;
-        mesh_->vertex_colors_ = mesh.vertex_colors_;
+        mesh_->vertex_colors_.resize(
+                mesh_->vertices_.size());  // mesh.vertex_colors_;
         mesh_->triangles_ = mesh.triangles_;
 
         mesh_->RemoveDuplicatedVertices();
@@ -78,17 +79,27 @@ public:
     }
 
     double ComputeAngle(size_t vidx0, size_t vidx1, size_t vidx2) {
-        // Return M_PI if a triangle with the indices vidx0, vidx1 and vidx2
+        // Return 2 * M_PI if a triangle with the indices vidx0, vidx1 and vidx2
         // (in any order) already exists.
         if (IsTriangle(vidx0, vidx1, vidx2)) {
-            return M_PI;
+            return 2 * M_PI;
         }
 
         const Eigen::Vector3d v1 =
-                mesh_->vertices_[vidx0] - mesh_->vertices_[vidx1];
+                mesh_->vertices_[vidx1] - mesh_->vertices_[vidx0];
         const Eigen::Vector3d v2 =
-                mesh_->vertices_[vidx2] - mesh_->vertices_[vidx1];
-        return std::acos(v1.dot(v2) / (v1.norm() * v2.norm()));
+                mesh_->vertices_[vidx2] - mesh_->vertices_[vidx0];
+        double angle = std::acos(v1.dot(v2));
+
+        // Inspect whether the angle is convex/concave.
+        const Eigen::Vector3d normal = v1.cross(v2).normalized();
+        const double angleWithZAxis = std::acos(normal.z());
+        const double angle_axis = Eigen::AngleAxisd const v1_projected = ;
+        const v2_projected = ;
+        const query_point_projected = ;
+
+        std::cout << "angle: " << angle << std::endl;
+        return angle;
     }
 
     void ComputeAnglesForNeighbors(std::vector<double> &angles,
@@ -344,6 +355,13 @@ public:
                         // Add one triangle, but no new vertices.
                         AddTriangle(vidx_prev, vidx_next, vidx);
 
+                        // TODO: Remove the following block:
+                        mesh_->vertex_colors_[vidx_prev] =
+                                Eigen::Vector3d{1, 0, 0};
+                        mesh_->vertex_colors_[vidx] = Eigen::Vector3d{1, 0, 0};
+                        mesh_->vertex_colors_[vidx_next] =
+                                Eigen::Vector3d{1, 0, 0};
+
                         mesh_->adjacency_list_[vidx_prev].insert(vidx_next);
                         mesh_->adjacency_list_[vidx_next].insert(vidx_prev);
 
@@ -448,13 +466,13 @@ public:
                         return;
                     }
                 }
+
+                std::vector<std::shared_ptr<const geometry::Geometry>> meshes;
+                meshes.push_back(mesh_);
+                visualization::DrawGeometries(meshes);
             }
 
             AddTriangle(front[2], front[1], front[0]);
-
-            std::vector<std::shared_ptr<const geometry::Geometry>> meshes;
-            meshes.push_back(mesh_);
-            visualization::DrawGeometries(meshes);
         }
     }
 

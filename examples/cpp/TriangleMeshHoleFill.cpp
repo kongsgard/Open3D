@@ -12,7 +12,7 @@ int main(int argc, char *argv[]) {
             "/Users/sondrebk/Documents/Open3d/examples/TestData/Bunny.ply");
     // auto mesh = io::CreateMeshFromFile(
     //        "/Users/sondrebk/Desktop/archive/Badger.off");
-    auto filled_mesh = mesh->FillHoles();
+    // auto filled_mesh = mesh->FillHoles();
     //*/
 
     /*
@@ -34,6 +34,15 @@ int main(int argc, char *argv[]) {
     //*/
 
     /*
+    geometry::TriangleMesh mesh;
+    mesh.vertices_ = {{0, 0, 0},      {1, 0, 0},   {1, 1, 0},   {0, 1, 0},
+                      {0.5, 0.5, -1}, {0.5, 0, 1}, {0.5, 1, 1}, {0.5, 0.5, 0}};
+    mesh.triangles_ = {{0, 4, 1}, {1, 4, 2}, {2, 4, 3}, {3, 4, 7},
+                       {7, 4, 0}, {2, 3, 6}, {0, 1, 5}};
+    auto filled_mesh = mesh.FillHoles();
+    //*/
+
+    /*
     utility::LogDebug("Triangles: {}\n",
                       std::to_string(filled_mesh->triangles_.size()));
 
@@ -46,7 +55,7 @@ int main(int argc, char *argv[]) {
     //*/
 
     std::vector<std::shared_ptr<const geometry::Geometry>> meshes;
-    // meshes.push_back(mesh);
-    meshes.push_back(filled_mesh);
+    meshes.push_back(mesh);
+    // meshes.push_back(filled_mesh);
     visualization::DrawGeometries(meshes);
 }
